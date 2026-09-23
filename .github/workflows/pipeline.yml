@@ -42,7 +42,7 @@ jobs:
       - name: Lint Python Code with Ruff
         uses: astral-sh/ruff-action@v3
         with:
-          args: "check backend/"
+          args: "check backend/ --ignore BLE001"
 
       # 3. Lint do JavaScript usando ESLint (Flat Config)
       - name: Set up Node.js

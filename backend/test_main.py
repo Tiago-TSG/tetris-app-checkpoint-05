@@ -1,13 +1,14 @@
-import os
-import json
 import base64
+import json
+import os
 import unittest
 from unittest.mock import MagicMock, patch
 
 # Configura variáveis de ambiente de teste antes de importar o main
 os.environ["SCORES_FILE_PATH"] = "test_scores.json"
 
-import backend.main as main
+from backend import main
+
 
 class TestTetrisBackend(unittest.TestCase):
     def setUp(self):
@@ -106,7 +107,7 @@ class TestTetrisBackend(unittest.TestCase):
         mock_publisher.publish.assert_called_once()
         
         # Verifica se o payload em bytes foi enviado corretamente
-        args, kwargs = mock_publisher.publish.call_args
+        args, _ = mock_publisher.publish.call_args
         self.assertEqual(args[0], "projects/test-project/topics/scores-topic")
         sent_bytes = args[1]
         decoded_sent_data = json.loads(sent_bytes.decode("utf-8"))

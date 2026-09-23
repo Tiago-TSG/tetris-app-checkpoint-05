@@ -1,11 +1,13 @@
-import os
-import json
 import base64
+import json
 import logging
-from typing import List, Dict, Any
+import os
+from typing import Any
+
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+
 
 # Safely import firestore to avoid NameError when real client is disabled or missing
 class MockQuery:
@@ -69,8 +71,8 @@ logger.propagate = False
 monitoring_client = None
 project_name = None
 try:
-    from google.cloud import monitoring_v3
     import google.auth
+    from google.cloud import monitoring_v3
     
     # Auto-detecta o ID do projeto no GCP (funciona local com ADC ou no Cloud Run)
     try:
@@ -87,15 +89,16 @@ try:
 except Exception as e:
     logger.warning(f"Could not initialize Cloud Monitoring Client: {e}. Metrics will be logged locally only.")
 
-def report_custom_metric(metric_type: str, value: float | int, labels: Dict[str, str] = None) -> None:
+def report_custom_metric(metric_type: str, value: float, labels: dict[str, str] | None = None) -> None:
     """Envia uma métrica customizada para o Google Cloud Monitoring ou loga localmente como fallback."""
     metric_path = f"custom.googleapis.com/{metric_type}"
     if monitoring_client is None or project_name is None:
         logger.info(f"[Metric Fallback] {metric_path} -> value: {value}, labels: {labels}")
         return
     try:
-        from google.cloud import monitoring_v3
         import time
+
+        from google.cloud import monitoring_v3
         
         series = monitoring_v3.TimeSeries()
         series.metric.type = metric_path
@@ -201,7 +204,7 @@ else:
         logger.warning(f"Could not initialize Pub/Sub Publisher Client: {e}. Falling back to direct database writes.")
         publisher = None
 
-def load_scores_local() -> List[Dict[str, Any]]:
+def load_scores_local() -> list[dict[str, Any]]:
     if not os.path.exists(SCORES_FILE):
         logger.info("Scores file not found. Pre-populating with default scores.")
         save_scores_local(DEFAULT_SCORES)
@@ -213,7 +216,7 @@ def load_scores_local() -> List[Dict[str, Any]]:
         logger.error(f"Error reading scores file: {e}. Returning default scores.")
         return DEFAULT_SCORES
 
-def save_scores_local(scores: List[Dict[str, Any]]) -> None:
+def save_scores_local(scores: list[dict[str, Any]]) -> None:
     try:
         with open(SCORES_FILE, "w", encoding="utf-8") as f:
             json.dump(scores, f, indent=4, ensure_ascii=False)
@@ -234,7 +237,7 @@ def populate_default_scores_firestore() -> None:
     except Exception as e:
         logger.error(f"Failed to populate default scores in Firestore: {e}")
 
-def load_scores_from_firestore() -> List[Dict[str, Any]]:
+def load_scores_from_firestore() -> list[dict[str, Any]]:
     if db is None:
         return load_scores_local()
     try:
@@ -272,7 +275,7 @@ def update_leaderboard_cache_sync():
 
 ACHIEVEMENTS_FILE = "achievements.json"
 
-def load_achievements_local() -> Dict[str, Any]:
+def load_achievements_local() -> dict[str, Any]:
     if not os.path.exists(ACHIEVEMENTS_FILE):
         return {}
     try:
@@ -282,14 +285,14 @@ def load_achievements_local() -> Dict[str, Any]:
         logger.error(f"Error loading local achievements: {e}")
         return {}
 
-def save_achievements_local(data: Dict[str, Any]) -> None:
+def save_achievements_local(data: dict[str, Any]) -> None:
     try:
         with open(ACHIEVEMENTS_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=4)
     except Exception as e:
         logger.error(f"Error saving local achievements: {e}")
 
-def calculate_badges(total_lines: int, total_tetris: int, max_level: int) -> List[str]:
+def calculate_badges(total_lines: int, total_tetris: int, max_level: int) -> list[str]:
     badges = []
     # 1. Sobrevivência (Níveis)
     if max_level >= 3:
@@ -338,7 +341,7 @@ SKINS_CATALOG = {
 }
 
 # --- WALLET PERSISTENCE ---
-def load_wallets_local() -> Dict[str, Any]:
+def load_wallets_local() -> dict[str, Any]:
     if not os.path.exists(WALLETS_FILE):
         return {}
     try:
@@ -348,7 +351,7 @@ def load_wallets_local() -> Dict[str, Any]:
         logger.error(f"Error loading local wallets: {e}")
         return {}
 
-def save_wallets_local(data: Dict[str, Any]) -> None:
+def save_wallets_local(data: dict[str, Any]) -> None:
     try:
         with open(WALLETS_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=4)
@@ -400,7 +403,7 @@ def update_wallet_balance(session_id: str, amount: int) -> bool:
         return False
 
 # --- INVENTORY PERSISTENCE ---
-def load_inventories_local() -> Dict[str, Any]:
+def load_inventories_local() -> dict[str, Any]:
     if not os.path.exists(INVENTORIES_FILE):
         return {}
     try:
@@ -410,14 +413,14 @@ def load_inventories_local() -> Dict[str, Any]:
         logger.error(f"Error loading local inventories: {e}")
         return {}
 
-def save_inventories_local(data: Dict[str, Any]) -> None:
+def save_inventories_local(data: dict[str, Any]) -> None:
     try:
         with open(INVENTORIES_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=4)
     except Exception as e:
         logger.error(f"Error saving local inventories: {e}")
 
-def get_unlocked_skins(session_id: str) -> List[str]:
+def get_unlocked_skins(session_id: str) -> list[str]:
     session_id = session_id.upper()
     if db is None:
         inv = load_inventories_local()
@@ -439,7 +442,7 @@ def get_unlocked_skins(session_id: str) -> List[str]:
 def unlock_skin(session_id: str, skin_id: str) -> bool:
     session_id = session_id.upper()
     if skin_id == "corrupt_skin":
-        logger.warning(f"Simulating DB error on Inventory Service for corrupt_skin")
+        logger.warning("Simulating DB error on Inventory Service for corrupt_skin")
         return False
     if db is None:
         inv = load_inventories_local()
@@ -501,7 +504,7 @@ def set_active_skin(session_id: str, skin_id: str) -> bool:
         return False
 
 # --- BAN SERVICE PERSISTENCE ---
-def load_bans_local() -> List[str]:
+def load_bans_local() -> list[str]:
     if not os.path.exists(BANS_FILE):
         return []
     try:
@@ -511,7 +514,7 @@ def load_bans_local() -> List[str]:
         logger.error(f"Error loading local bans: {e}")
         return []
 
-def save_bans_local(data: List[str]) -> None:
+def save_bans_local(data: list[str]) -> None:
     try:
         with open(BANS_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=4)
@@ -546,7 +549,7 @@ def ban_session(session_id: str) -> None:
         logger.error(f"Error banning session: {e}")
 
 # --- IDEMPOTENCY KEY TRANSACTIONS PERSISTENCE ---
-def load_transactions_local() -> Dict[str, Any]:
+def load_transactions_local() -> dict[str, Any]:
     if not os.path.exists(TRANSACTIONS_FILE):
         return {}
     try:
@@ -556,7 +559,7 @@ def load_transactions_local() -> Dict[str, Any]:
         logger.error(f"Error loading local transactions: {e}")
         return {}
 
-def save_transactions_local(data: Dict[str, Any]) -> None:
+def save_transactions_local(data: dict[str, Any]) -> None:
     try:
         with open(TRANSACTIONS_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=4)
@@ -576,7 +579,7 @@ def is_transaction_processed(transaction_id: str) -> bool:
         logger.error(f"Error checking transaction status: {e}")
         return False
 
-def record_transaction(transaction_id: str, payload: Dict[str, Any]) -> None:
+def record_transaction(transaction_id: str, payload: dict[str, Any]) -> None:
     if not transaction_id:
         return
     if db is None:
@@ -592,7 +595,7 @@ def record_transaction(transaction_id: str, payload: Dict[str, Any]) -> None:
         logger.error(f"Error recording transaction: {e}")
 
 # --- AI ML DETECTOR HEURISTIC ---
-def analyze_keystrokes_with_ml(keystrokes: List[Dict[str, Any]]) -> str:
+def analyze_keystrokes_with_ml(keystrokes: list[dict[str, Any]]) -> str:
     """
     Classificador Heurístico simulando IA/ML.
     Mede desvio padrão das cadências para detectar cliques robóticos ou falta de telemetria.
@@ -618,7 +621,7 @@ def analyze_keystrokes_with_ml(keystrokes: List[Dict[str, Any]]) -> str:
     return "Human"
 
 # --- TELEMETRY PROCESSING REWARDS INTEGRATION ---
-def process_telemetry_event(event: Dict[str, Any]) -> Dict[str, Any]:
+def process_telemetry_event(event: dict[str, Any]) -> dict[str, Any]:
     session_id = event["session_id"].upper()
     event_type = event["event_type"]
     value = event["value"]
@@ -765,7 +768,7 @@ def merge_achievements(session_id: str, player_name: str) -> None:
     except Exception as e:
         logger.error(f"Error merging achievements: {e}")
 
-def save_score_to_firestore(entry: Dict[str, Any]) -> None:
+def save_score_to_firestore(entry: dict[str, Any]) -> None:
     session_id = entry.get("session_id")
     # Limpa o session_id antes de salvar o score cru no Firestore
     score_data = {k: v for k, v in entry.items() if k != "session_id"}
@@ -800,7 +803,7 @@ def save_score_to_firestore(entry: Dict[str, Any]) -> None:
         except Exception as local_err:
             logger.error(f"Failed to save to local fallback: {local_err}")
 
-def publish_score_to_pubsub(entry: Dict[str, Any]) -> bool:
+def publish_score_to_pubsub(entry: dict[str, Any]) -> bool:
     if publisher is None or topic_path is None:
         logger.info("Pub/Sub client not active. Fallback: direct write to Firestore/local.")
         save_score_to_firestore(entry)
@@ -818,7 +821,7 @@ def publish_score_to_pubsub(entry: Dict[str, Any]) -> bool:
         save_score_to_firestore(entry)
         return False
 
-def publish_telemetry_to_pubsub(event: Dict[str, Any]) -> bool:
+def publish_telemetry_to_pubsub(event: dict[str, Any]) -> bool:
     if publisher is None or telemetry_topic_path is None:
         logger.info("Pub/Sub telemetry client not active. Fallback: direct processing.")
         process_telemetry_event(event)
@@ -907,7 +910,7 @@ class AccountBanRequest(BaseModel):
     session_id: str
 
 class AntiCheatRequest(BaseModel):
-    keystrokes: List[Dict[str, Any]] = Field(default=[])
+    keystrokes: list[dict[str, Any]] = Field(default=[])
     is_bot_simulated: bool = False
 
 class BuySkinOrchestratedRequest(BaseModel):
@@ -920,7 +923,7 @@ class ScoreOrchestratedRequest(BaseModel):
     level: int = Field(..., ge=1)
     lines: int = Field(..., ge=0)
     session_id: str
-    keystrokes: List[Dict[str, Any]] = Field(default=[])
+    keystrokes: list[dict[str, Any]] = Field(default=[])
     is_bot_simulated: bool = False
 
 # ============================================================================
@@ -1165,8 +1168,8 @@ def orchestrator_buy_skin(req: BuySkinOrchestratedRequest):
     
     debit_payload = WalletDebitRequest(session_id=session_id, amount=price, transaction_id=transaction_id)
     try:
-        debit_res = api_wallet_debit(debit_payload)
-        logs.append(f"[WalletService] Débito efetuado com sucesso! Saldo atualizado.")
+        api_wallet_debit(debit_payload)
+        logs.append("[WalletService] Débito efetuado com sucesso! Saldo atualizado.")
         logger.info(
             f"SAGA Step 1: Wallet debit successful for {session_id}",
             extra={
@@ -1198,7 +1201,7 @@ def orchestrator_buy_skin(req: BuySkinOrchestratedRequest):
     
     unlock_payload = InventoryUnlockRequest(session_id=session_id, skin_id=skin_id, transaction_id=transaction_id)
     try:
-        unlock_res = api_inventory_unlock(unlock_payload)
+        api_inventory_unlock(unlock_payload)
         logs.append(f"[InventoryService] Skin '{skin_id}' adicionada ao inventário do jogador!")
         logger.info(
             f"SAGA Step 2: Inventory unlock successful for {session_id}",
@@ -1242,11 +1245,11 @@ def orchestrator_buy_skin(req: BuySkinOrchestratedRequest):
             report_custom_metric("tetris/store/skins_sold", 1, {"skin_id": skin_id, "status": "rolled_back"})
         except Exception as err:
             # DLQ (Dead Letter Queue) caso o rollback também falhe!
-            logs.append(f"[WalletService] ERRO CRÍTICO COMPLEMENTAR: Falha catastrófica ao reembolsar jogador!")
-            logs.append(f"[Workflows] !!! REDIRECIONANDO ERRO PARA SAGA-DLQ (Dead Letter Queue do Pub/Sub) !!!")
+            logs.append("[WalletService] ERRO CRÍTICO COMPLEMENTAR: Falha catastrófica ao reembolsar jogador!")
+            logs.append("[Workflows] !!! REDIRECIONANDO ERRO PARA SAGA-DLQ (Dead Letter Queue do Pub/Sub) !!!")
             logs.append(f"[Workflows] ID de rastreamento salvo na DLQ: {transaction_id}-DLQ-ERROR")
             logger.critical(
-                f"SAGA CRITICAL FAILURE: SAGA rollback failed! Routing to DLQ.",
+                "SAGA CRITICAL FAILURE: SAGA rollback failed! Routing to DLQ.",
                 extra={
                     "session_id": session_id,
                     "skin_id": skin_id,
@@ -1327,7 +1330,7 @@ def orchestrator_submit_score(req: ScoreOrchestratedRequest):
     # --- STEP 3: CONDICIONAL (DECISION TREE) ---
     if classification == "Robot":
         logs.append("[Workflows] Decisão: ROTA BOT (Rígida). Acionando banimento de conta.")
-        logs.append(f"[Workflows] Executando chamada HTTP POST -> /api/accounts/ban")
+        logs.append("[Workflows] Executando chamada HTTP POST -> /api/accounts/ban")
         
         ban_payload = AccountBanRequest(session_id=session_id)
         api_accounts_ban(ban_payload)
@@ -1403,9 +1406,9 @@ def telemetry_pubsub_push_receiver(payload: PubSubPushPayload):
         return {"status": "success"}
     except Exception as e:
         logger.error(f"Error processing telemetry Push message: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to process telemetry message: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to process telemetry message: {e!s}")
 
-@app.get("/api/scores", response_model=List[Dict[str, Any]])
+@app.get("/api/scores", response_model=list[dict[str, Any]])
 def get_scores():
     """
     Recupera os 10 melhores placares usando Cache Materializado.
@@ -1436,7 +1439,7 @@ def get_scores():
         scores = load_scores_local()
         return sorted(scores, key=lambda x: x["score"], reverse=True)[:10]
 
-@app.post("/api/scores", response_model=List[Dict[str, Any]])
+@app.post("/api/scores", response_model=list[dict[str, Any]])
 def add_score(entry: ScoreEntry):
     """Adiciona um novo placar. Publica no Pub/Sub de forma assíncrona se disponível."""
     logger.info(f"Adding score: {entry.name} - {entry.score}")
@@ -1471,7 +1474,7 @@ def pubsub_push_receiver(payload: PubSubPushPayload):
     except Exception as e:
         logger.error(f"Error processing Pub/Sub Push message: {e}")
         # Retorna erro 500 para o Pub/Sub saber que deve tentar novamente (retry)
-        raise HTTPException(status_code=500, detail=f"Failed to process message: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to process message: {e!s}")
 
 # Montagem dos arquivos estáticos do frontend.
 # Criamos a pasta estática se não existir para evitar erros ao iniciar o FastAPI

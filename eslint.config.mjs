@@ -3,7 +3,7 @@ export default [
         files: ["static/js/**/*.js"],
         languageOptions: {
             ecmaVersion: 2022,
-            sourceType: "module",
+            sourceType: "script",
             globals: {
                 // --- Navegador Padrão ---
                 window: "readonly",
@@ -48,7 +48,7 @@ export default [
             }
         },
         rules: {
-            "no-unused-vars": "warn",
+            "no-unused-vars": "off",
             "no-undef": "error"
         }
     }

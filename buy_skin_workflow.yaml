@@ -1,0 +1,132 @@
+# ============================================================================
+# GOOGLE CLOUD WORKFLOWS: SAGA PATTERN ORCHESTRATION (BUY SKIN)
+# ============================================================================
+# Este arquivo YAML define a orquestração serverless gerenciada na nuvem do GCP
+# para realizar a compra de skins com transação compensatória e tratamento de DLQ.
+# ============================================================================
+main:
+  params: [input]
+  options:
+    logging:
+      level: TRACE_ALL_CALLS
+  steps:
+    - init_variables:
+        assign:
+          - session_id: ${input.session_id}
+          - skin_id: ${input.skin_id}
+          - transaction_id: ${"TX-BUY-" + session_id + "-" + skin_id}
+          - catalog_url: "https://sophisticated-tetris-backend-api/api/store/catalog/"
+          - debit_url: "https://sophisticated-tetris-backend-api/api/wallet/debit"
+          - unlock_url: "https://sophisticated-tetris-backend-api/api/inventory/unlock"
+          - credit_url: "https://sophisticated-tetris-backend-api/api/wallet/credit"
+          - dlq_topic: "projects/puc-minas-505619/topics/saga-dlq"
+
+    - get_skin_info:
+        call: http.get
+        args:
+          url: ${catalog_url + session_id}
+        result: catalog_res
+
+    - check_if_unlocked:
+        assign:
+          - price: 0
+        # Seleciona o preço baseado na skin solicitada
+        switch:
+          - condition: ${skin_id == "pink_panther"}
+            assign:
+              - price: 100000
+          - condition: ${skin_id == "star_wars"}
+            assign:
+              - price: 250000
+          - condition: ${skin_id == "harry_potter"}
+            assign:
+              - price: 500000
+          - condition: ${skin_id == "lord_of_the_rings"}
+            assign:
+              - price: 1000000
+          - condition: ${skin_id == "gameboy"}
+            assign:
+              - price: 10000
+          - condition: ${skin_id == "cyberpunk"}
+            assign:
+              - price: 20000
+          - condition: ${skin_id == "retro_future"}
+            assign:
+              - price: 30000
+          - condition: ${skin_id == "corrupt_skin"}
+            assign:
+              - price: 1000
+        next: call_debit
+
+    - call_debit:
+        try:
+          call: http.post
+          args:
+            url: ${debit_url}
+            body:
+              session_id: ${session_id}
+              amount: ${price}
+              transaction_id: ${transaction_id}
+          result: debit_res
+        retry:
+          predicate: ${http.default_retry_predicate}
+          max_retries: 5
+          backoff:
+            initial_delay: 1.0
+            max_delay: 60.0
+            multiplier: 2.0
+
+    - call_unlock:
+        try:
+          call: http.post
+          args:
+            url: ${unlock_url}
+            body:
+              session_id: ${session_id}
+              skin_id: ${skin_id}
+              transaction_id: ${transaction_id}
+          result: unlock_res
+        retry:
+          predicate: ${http.default_retry_predicate}
+          max_retries: 5
+          backoff:
+            initial_delay: 1.0
+            max_delay: 60.0
+            multiplier: 2.0
+        except:
+          as: unlock_error
+          next: rollback_debit
+
+    - success_end:
+        return:
+          status: "success"
+          message: "Skin comprada com sucesso via orquestrador GCP Workflows!"
+          new_balance: ${debit_res.body.coins}
+
+    - rollback_debit:
+        try:
+          call: http.post
+          args:
+            url: ${credit_url}
+            body:
+              session_id: ${session_id}
+              amount: ${price}
+              transaction_id: ${transaction_id + "-COMPENSATE"}
+          result: credit_res
+        except:
+          as: compensate_error
+          next: route_to_dlq
+        return:
+          status: "rolled_back"
+          message: "Erro ao desbloquear skin no inventário. Compra cancelada e moedas devolvidas."
+
+    - route_to_dlq:
+        call: googleapis.pubsub.v1.projects.topics.publish
+        args:
+          topic: ${dlq_topic}
+          body:
+            messages:
+              - data: ${base64.encode(json.encode({"error": "SAGA_COMPENSATION_FAILED", "session_id": session_id, "amount": price, "transaction_id": transaction_id}))}
+        return:
+          status: "dlq_error"
+          message: "ERRO CRÍTICO: Compensação SAGA falhou! Incidente enviado para a Fila de Mensagens Mortas (DLQ) do Pub/Sub."

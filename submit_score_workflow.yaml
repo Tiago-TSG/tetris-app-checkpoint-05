@@ -1,0 +1,81 @@
+# ============================================================================
+# GOOGLE CLOUD WORKFLOWS: DECISION TREE ORCHESTRATION (SUBMIT SCORE & ANTI-CHEAT)
+# ============================================================================
+# Este arquivo YAML define a orquestração do fluxo de envio de pontuações,
+# aplicando as validações de banimento, classificação de telemetria IA
+# e decisões condicionais de salvamento ou punição.
+# ============================================================================
+main:
+  params: [input]
+  options:
+    logging:
+      level: TRACE_ALL_CALLS
+  steps:
+    - init_variables:
+        assign:
+          - session_id: ${input.session_id}
+          - player_name: ${input.name}
+          - score: ${input.score}
+          - level: ${input.level}
+          - lines: ${input.lines}
+          - keystrokes: ${input.keystrokes}
+          - is_bot_simulated: ${input.is_bot_simulated}
+          - ban_check_url: ${"https://sophisticated-tetris-backend-api/api/accounts/status/" + session_id}
+          - analyze_url: "https://sophisticated-tetris-backend-api/api/anti-cheat/analyze"
+          - ban_url: "https://sophisticated-tetris-backend-api/api/accounts/ban"
+          - publish_url: "https://sophisticated-tetris-backend-api/api/scores/publish"
+
+    - check_if_banned:
+        # Consulta se a conta está na lista negra
+        call: http.get
+        args:
+          url: ${ban_check_url}
+        result: ban_status_res
+
+    - filter_banned:
+        switch:
+          - condition: ${ban_status_res.body.banned == true}
+            return:
+              status: "banned"
+              message: "REJEITADO: Usuário já banido permanentemente."
+
+    - call_anti_cheat_ai:
+        call: http.post
+        args:
+          url: ${analyze_url}
+          body:
+            keystrokes: ${keystrokes}
+            is_bot_simulated: ${is_bot_simulated}
+        result: ai_res
+
+    - evaluate_classification:
+        switch:
+          - condition: ${ai_res.body.result == "Robot"}
+            next: execute_ban
+          - condition: ${ai_res.body.result == "Human"}
+            next: execute_publish
+
+    - execute_ban:
+        call: http.post
+        args:
+          url: ${ban_url}
+          body:
+            session_id: ${session_id}
+        return:
+          status: "banned"
+          message: "Uso de bot detectado pela IA! Sessão banida permanentemente."
+
+    - execute_publish:
+        # Envia pontuação final para publicação Pub/Sub (Coreografia)
+        call: http.post
+        args:
+          url: ${publish_url}
+          body:
+            name: ${player_name}
+            score: ${score}
+            level: ${level}
+            lines: ${lines}
+            session_id: ${session_id}
+        return:
+          status: "success"
+          message: "Partida legítima validada! Pontuação gravada."

@@ -7,9 +7,6 @@
 # ============================================================================
 main:
   params: [input]
-  options:
-    logging:
-      level: TRACE_ALL_CALLS
   steps:
     - init_variables:
         assign:
@@ -61,6 +58,8 @@ main:
           url: ${ban_url}
           body:
             session_id: ${session_id}
+
+    - finish_ban:
         return:
           status: "banned"
           message: "Uso de bot detectado pela IA! Sessão banida permanentemente."
@@ -76,6 +75,8 @@ main:
             level: ${level}
             lines: ${lines}
             session_id: ${session_id}
+
+    - finish_publish:
         return:
           status: "success"
           message: "Partida legítima validada! Pontuação gravada."

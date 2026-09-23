@@ -34,13 +34,13 @@ jobs:
 
       # 1. Gitleaks - Detectar segredos expostos
       - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # 2. Lint do Python usando Ruff (Ultrarápido)
       - name: Lint Python Code with Ruff
-        uses: astral-sh/ruff-action@v3
+        uses: astral-sh/ruff-action@v4.1.0
         with:
           src: "./backend"
           args: "check --ignore BLE001"
@@ -49,7 +49,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Install ESLint and run check
         run: |
@@ -118,14 +118,14 @@ jobs:
       # 1. Autenticação Segura via WIF
       - name: Google Auth (WIF)
         id: auth
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
 
       # 2. Configuração do gcloud CLI
       - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
+        uses: google-github-actions/setup-gcloud@v3
 
       # 3. Autenticação do Docker no Artifact Registry
       - name: Configure Docker
@@ -155,7 +155,7 @@ jobs:
 
       # 7. Deploy no Google Cloud Run
       - name: Deploy to Cloud Run
-        uses: google-github-actions/deploy-cloudrun@v2
+        uses: google-github-actions/deploy-cloudrun@v3
         with:
           service: ${{ env.SERVICE }}
           region: ${{ env.REGION }}

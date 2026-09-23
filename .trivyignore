@@ -1,0 +1,15 @@
+# =========================================================================
+# .trivyignore - Vulnerabilidades Ignoradas na Pipeline do Retro Neon Tetris
+# =========================================================================
+#
+# As vulnerabilidades abaixo referem-se a pacotes internos empacotados (vendored)
+# diretamente dentro das ferramentas oficiais de sistema do Python (pip e setuptools).
+#
+# Elas não representam risco para a execução do nosso backend FastAPI e são
+# consideradas não mitigáveis sem que se rompa o empacotamento oficial upstream do Python.
+
+# msgpack empacotado internamente pelo instalador oficial do 'pip'
+GHSA-6v7p-g79w-8964
+
+# setuptools (CVE-2025-47273) empacotado nas ferramentas internas do Python
+CVE-2025-47273

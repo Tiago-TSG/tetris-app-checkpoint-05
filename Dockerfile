@@ -4,6 +4,7 @@ WORKDIR /app
 
 # Copia os requisitos e instala as dependências do Python
 COPY backend/requirements.txt .
+# hadolint ignore=DL3013
 RUN pip install --no-cache-dir -r requirements.txt && \
     pip install --no-cache-dir --upgrade pip "setuptools>=78.1.1" "wheel>=0.46.2" "msgpack>=1.2.1"
 

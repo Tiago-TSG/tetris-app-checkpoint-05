@@ -1,0 +1,177 @@
+name: DevSecOps CI/CD Pipeline - Retro Neon Tetris
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GAR_LOCATION: ${{ secrets.GCP_GAR_LOCATION }}
+  REPOSITORY: ${{ secrets.GCP_GAR_REPOSITORY }}
+  SERVICE: ${{ secrets.GCP_RUN_SERVICE }}
+  REGION: ${{ secrets.GCP_REGION }}
+
+permissions:
+  contents: read
+  id-token: write # Requerido para autenticação via WIF
+
+jobs:
+  # ==========================================
+  # JOB 1: QUALIDADE E SEGURANÇA (DevSecOps)
+  # ==========================================
+  quality-and-security:
+    name: Code Quality & Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Necessário para o Gitleaks analisar histórico de commits
+
+      # 1. Gitleaks - Detectar segredos expostos
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 2. Lint do Python usando Ruff (Ultrarápido)
+      - name: Lint Python Code with Ruff
+        uses: astral-sh/ruff-action@v3
+        with:
+          args: "check backend/"
+
+      # 3. Lint do JavaScript usando ESLint (Flat Config)
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install ESLint and run check
+        run: |
+          npm init -y --silent
+          npm install eslint@9.10.0 --save-dev --silent
+          npx eslint static/js/
+
+      # 4. Hadolint - Lint do Dockerfile
+      - name: Lint Dockerfile (Hadolint)
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+
+      # 5. Bandit - SAST de Segurança em Python (Sinaliza falhas graves)
+      - name: Python Security Scan (Bandit)
+        run: |
+          pip install bandit
+          bandit -r backend/ -ll
+
+      # 6. Trivy - Análise de dependências estáticas (SCA)
+      - name: Scan repository for vulnerabilities (Trivy FS)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH'
+
+  # ==========================================
+  # JOB 2: TESTES UNITÁRIOS (CI)
+  # ==========================================
+  test:
+    name: Continuous Integration (CI)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Run unit tests
+        run: |
+          python -m unittest discover -s backend -p "test_main.py"
+
+  # ==========================================
+  # JOB 3: IMPLANTAÇÃO SEGURA (CD)
+  # ==========================================
+  deploy:
+    name: Continuous Deployment (CD)
+    needs: [quality-and-security, test] # Só executa se passar no scanner de segurança e nos testes
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 1. Autenticação Segura via WIF
+      - name: Google Auth (WIF)
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+
+      # 2. Configuração do gcloud CLI
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      # 3. Autenticação do Docker no Artifact Registry
+      - name: Configure Docker
+        run: |
+          gcloud auth configure-docker ${{ env.GAR_LOCATION }}-docker.pkg.dev --quiet
+
+      # 4. Build da Imagem Docker Localmente
+      - name: Build Container Image
+        run: |
+          IMAGE_TAG="${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE }}:${{ github.sha }}"
+          docker build -t $IMAGE_TAG .
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+
+      # 5. Trivy - Varredura de Segurança da imagem Docker gerada (antes de enviar ao GCP)
+      - name: Scan Docker Image (Trivy Image)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE_TAG }}
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+
+      # 6. Push da Imagem caso passe em todos os testes de segurança
+      - name: Push Container Image
+        run: |
+          docker push ${{ env.IMAGE_TAG }}
+
+      # 7. Deploy no Google Cloud Run
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.SERVICE }}
+          region: ${{ env.REGION }}
+          image: ${{ env.IMAGE_TAG }}
+          flags: |
+            --port=8080
+            --allow-unauthenticated
+
+      # 8. Deploy de Orquestradores do Google Cloud Workflows
+      - name: Deploy Cloud Workflows
+        run: |
+          gcloud workflows deploy buy_skin_workflow \
+            --source=buy_skin_workflow.yaml \
+            --location=${{ env.REGION }} \
+            --quiet
+
+          gcloud workflows deploy submit_score_workflow \
+            --source=submit_score_workflow.yaml \
+            --location=${{ env.REGION }} \
+            --quiet

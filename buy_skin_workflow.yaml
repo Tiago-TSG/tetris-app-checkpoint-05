@@ -126,7 +126,7 @@ main:
           topic: ${dlq_topic}
           body:
             messages:
-              - data: ${base64.encode(json.encode({"error": "SAGA_COMPENSATION_FAILED", "session_id": session_id, "amount": price, "transaction_id": transaction_id}))}
+              - data: '${base64.encode(json.encode({"error": "SAGA_COMPENSATION_FAILED", "session_id": session_id, "amount": price, "transaction_id": transaction_id}))}'
         return:
           status: "dlq_error"
           message: "ERRO CRÍTICO: Compensação SAGA falhou! Incidente enviado para a Fila de Mensagens Mortas (DLQ) do Pub/Sub."

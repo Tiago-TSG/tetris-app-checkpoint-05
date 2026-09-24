@@ -7,12 +7,14 @@ on:
     paths-ignore:
       - '**.md'
       - '.github/workflows/**'
+      - '.github/actions/**'
   pull_request:
     branches:
       - main
     paths-ignore:
       - '**.md'
       - '.github/workflows/**'
+      - '.github/actions/**'
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}

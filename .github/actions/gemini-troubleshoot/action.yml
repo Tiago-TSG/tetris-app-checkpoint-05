@@ -28,9 +28,29 @@ runs:
             with open("failed_logs.txt", "r") as f:
                 logs = f.read()
         except Exception:
-            logs = "Não foi possível carregar os logs de falha."
+            logs = ""
 
-        prompt = f"Você é o Gemini CLI, um assistente especialista DevOps. O pipeline do projeto Retro Neon Tetris falhou. Analise os logs de erro fornecidos e responda em português com um relatório estruturado em markdown contendo uma explicação curta e direta do motivo da falha, além de sugestões de correção passo a passo.\n\nLOGS DE ERRO:\n{logs}"
+        # FALLBACK INTELIGENTE: Se os logs vierem vazios (limitação do GitHub Actions para jobs em andamento),
+        # nós alimentamos a IA com os arquivos relevantes do próprio workspace com base no Job que falhou!
+        job_id = os.environ.get("GITHUB_JOB", "")
+        workspace_context = ""
+        
+        if not logs.strip() or logs.strip() == "=== FAILED WORKFLOW LOGS ===":
+            logs = "Os logs de execução do Actions estão temporariamente vazios (limitação da API do GitHub para jobs ainda ativos)."
+            
+            if job_id == "test":
+                try:
+                    with open("backend/test_main.py", "r") as f:
+                        test_content = f.read()
+                    workspace_context = f"\n\nNo entanto, como o job que falhou é de Testes Unitários (test), aqui está o código de testes do arquivo '\''backend/test_main.py'\'' para você analisar se há asserções falhas ou bugs induzidos:\n\n```python\n{test_content}\n```"
+                except Exception as e:
+                    workspace_context = f"\nNão foi possível ler o arquivo de teste: {str(e)}"
+            elif job_id == "lint":
+                workspace_context = "\nDica: O erro ocorreu na etapa de LINT (Qualidade de Código). Verifique se há arquivos com erro de sintaxe, variáveis não declaradas ou formatação fora do padrão PEP8 no Python ou Flat Config no Javascript."
+            elif job_id == "sast":
+                workspace_context = "\nDica: O erro ocorreu na etapa de SAST (Segurança). Verifique se o Bandit ou Trivy detectaram alguma vulnerabilidade crítica nas dependências (backend/requirements.txt) ou se o Gitleaks encontrou segredos expostos no histórico do Git."
+
+        prompt = f"Você é o Gemini CLI, um assistente especialista DevOps. O pipeline do projeto Retro Neon Tetris falhou no Job '\''{job_id}'\''. Analise as informações de erro fornecidas abaixo e responda em português com um relatório estruturado em markdown contendo uma explicação curta e direta do motivo da falha, além de sugestões de correção passo a passo.\n\nLOGS DE ERRO:\n{logs}{workspace_context}"
 
         payload = {
             "contents": [{

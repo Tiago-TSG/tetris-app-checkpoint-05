@@ -1,8 +1,8 @@
-# 🕹️ Retro Neon Tetris — Cloud Run Arcade (Microservices Saga, Anti-Cheat & Observability Edition)
+# 🕹️ Retro Neon Tetris — Cloud Run Arcade (Microservices Saga, Anti-Cheat, Observability & DevSecOps Edition)
 
 Uma versão moderna, estilosa e extremamente sofisticada do clássico jogo **Tetris**, projetada com visual retro-wave/neon (Synthwave) e **Sintetizador de Áudio Procedural** nativo no navegador (usando a Web Audio API).
 
-Esta versão (Checkpoint 04) evoluiu para uma **Arquitetura baseada em Microserviços e Orquestração Avançada (Saga Pattern & Decision Trees)** com **Instrumentação e Observabilidade Nativa no GCP (Cloud Logging & Cloud Monitoring)**, introduzindo uma Loja de Temas dinâmica, Motor Anti-Cheat com IA Heurística, Transações Compensatórias para garantia de consistência e governança em nuvem completa.
+Esta versão (**Checkpoint 05**) consolida a **Automação DevSecOps** com uma pipeline completa de CI/CD via GitHub Actions e portões robustos de segurança e qualidade. O projeto herda e aprimora a **Arquitetura baseada em Microserviços e Orquestração Avançada (Saga Pattern & Decision Trees - Checkpoint 03)** e a **Instrumentação e Observabilidade Nativa no GCP (Cloud Logging & Cloud Monitoring - Checkpoint 04)**, agregando ferramentas automáticas de SAST (Bandit), SCA (Trivy), detecção de segredos (Gitleaks), conformidade sintática (ESLint, Ruff, Hadolint), testes unitários contínuos e implantação contínua segura via WIF no Google Cloud Run.
 
 ## 🎨 Interface do Jogo
 
@@ -25,7 +25,7 @@ Este aplicativo foi planejado e otimizado especificamente para rodar localmente 
 
 ---
 
-## 🏛️ Evolução Arquitetural (Fases 1 a 5)
+## 🏛️ Evolução Arquitetural (Fases 1 a 6)
 
 O projeto original usava armazenamento local em disco, o que é incompatível com a natureza Serverless Efêmera do Cloud Run. O sistema foi refatorado nas seguintes fases:
 
@@ -53,7 +53,7 @@ O sistema monolítico foi refatorado e expandido adotando padrões modernos de o
 4. **Terminal Maestro e UI Didática:** Introdução de um console interativo estilo hacker no front-end para visualizar a orquestração em tempo real.
 5. **Engine de Áudio Expandida:** Sintetizador turbinado de 1 para 6 oitavas de cobertura (C2 a B7), com script matemático para compilar clássicos (Senhor dos Anéis em BPM perfeito, Star Wars, Pink Panther) renderizados no Web Audio API nativo.
 
-### Fase 5: Observabilidade e Instrumentação no GCP (Checkpoint 04 - Atual)
+### Fase 5: Observabilidade e Instrumentação no GCP (Checkpoint 04)
 A arquitetura evoluiu para contemplar governança e confiabilidade corporativas completas, introduzindo instrumentação nativa do Google Cloud de ponta a ponta (Logs, Métricas e Traces):
 1. **Logs Estruturados em JSON (Cloud Logging):** O logger padrão do backend em Python foi modificado para utilizar uma classe customizada `GCPJsonFormatter`. Todos os registros de log agora são impressos em streams de saída estruturados em JSON no formato esperado pelo GCP, injetando automaticamente campos como `severity`, `session_id`, `saga_step`, `transaction_id` e metadados de execução.
 2. **Métricas Personalizadas (Cloud Monitoring):** Integração segura com o SDK do Google Cloud Monitoring para emitir métricas personalizadas de negócio e infraestrutura de forma assíncrona, incluindo:
@@ -65,6 +65,17 @@ A arquitetura evoluiu para contemplar governança e confiabilidade corporativas 
 4. **Logs Nativos de Workflows:** Configuração de nível `TRACE_ALL_CALLS` nos orquestradores serverless (`buy_skin_workflow.yaml` e `submit_score_workflow.yaml`) para visibilidade total de etapas e compensações SAGA no Log Explorer.
 5. **Agregação de Erros de Frontend:** Implementação de um monitor global de erros em JS (`window.addEventListener('error')`) que reporta automaticamente exceções ocorridas no navegador do jogador para o endpoint `/api/logs` do backend, centralizando os erros de frontend no GCP Error Reporting.
 6. **Resiliência e Fallback Local:** O código foi projetado de forma defensiva para auto-detectar o ambiente. Se as bibliotecas do GCP não puderem se conectar ao barramento na nuvem (como no desenvolvimento local), o sistema chaveia automaticamente para impressão local formatada, garantindo testes locais perfeitamente offline.
+
+### Fase 6: Automação DevSecOps e Pipeline Integrada (Checkpoint 05 - Atual)
+A arquitetura atingiu maturidade de nível corporativo ao introduzir uma esteira automatizada de Integração, Qualidade, Segurança e Entrega Contínuas (CI/CD) via GitHub Actions, garantindo que nenhum código seja implantado sem passar por rigorosos portões de qualidade (Quality Gates):
+1. **Varredura Estática de Segredos (Gitleaks):** Análise automatizada de todo o histórico de commits para detecção preventiva de chaves de API, senhas ou tokens expostos.
+2. **Qualidade e Estilo de Código (Ruff & ESLint):** Linting automatizado de Python com Ruff (ultrarrápido) e de JavaScript (Flat Config `eslint.config.mjs`) para manter os padrões e a legibilidade do código.
+3. **Análise de Segurança do Código (Bandit SAST):** Análise estática focada em vulnerabilidades de segurança específicas do ecossistema Python (FastAPI).
+4. **Análise de Segurança de Dependências e Infraestrutura (Trivy SCA):** Varredura de segurança de pacotes (filesystem) e da imagem Docker gerada para identificação de CVEs (vulnerabilidades e exposições comuns) de níveis crítico/alto, garantindo a imunidade do ambiente de execução.
+5. **Linting de Infraestrutura como Código (Hadolint):** Validação estática das instruções do `Dockerfile` visando otimização de camadas, redução de tamanho e eliminação de privilégios elevados.
+6. **Integração e Testes Automatizados (CI):** Execução automática de testes unitários para garantir a estabilidade do backend a cada alteração.
+7. **Autenticação sem Segredos (Workload Identity Federation):** Conexão direta e segura com o GCP eliminando chaves estáticas JSON no repositório.
+8. **Implantação Contínua Automatizada (CD):** Publicação automatizada da imagem segura no Artifact Registry, deploy automático para o Cloud Run e deploy imediato dos workflows de orquestração do GCP Workflows.
 
 ---
 
@@ -92,6 +103,101 @@ A arquitetura evoluiu para contemplar governança e confiabilidade corporativas 
 
 ---
 
+## 🛡️ DevSecOps & Pipeline de CI/CD (GitHub Actions)
+
+O projeto adota uma abordagem de **DevSecOps robusta**, automatizada e integrada através do **GitHub Actions** (configurado em `.github/workflows/pipeline.yml`). O pipeline garante que toda alteração de código passe por um rigoroso processo de validação de qualidade, testes automatizados e varreduras de segurança estática e de dependências antes de ser promovida para produção no **Google Cloud**.
+
+Abaixo está o detalhamento completo de cada etapa, sua justificativa técnica e as ferramentas empregadas:
+
+### 📊 Estrutura Geral do Pipeline
+O fluxo de trabalho (workflow) está dividido em três jobs principais, configurados com dependências estritas para garantir que um deploy nunca aconteça se houver falhas de segurança ou bugs funcionais.
+
+```text
+┌──────────────────────────────────────────────────────────────┐
+│             JOB 1: QUALIDADE E SEGURANÇA (DevSecOps)          │
+│  Gitleaks  ─►  Ruff Linter  ─►  ESLint  ─►  Hadolint  ─► Bandit │
+│                                                      │       │
+│                                                      ▼       │
+│                                                   Trivy FS   │
+└──────────────────────────────┬───────────────────────────────┘
+                               │
+                               ▼
+┌──────────────────────────────────────────────────────────────┐
+│               JOB 2: TESTES UNITÁRIOS (CI)                   │
+│        Instalação Dependências  ──►  Testes Unitários        │
+└──────────────────────────────┬───────────────────────────────┘
+                               │
+                               ▼
+┌──────────────────────────────────────────────────────────────┐
+│               JOB 3: IMPLANTAÇÃO SEGURA (CD)                 │
+│  GCP Auth (WIF)  ──►  Docker Build  ──►  Trivy Image Scan    │
+│                                                │             │
+│                                                ▼             │
+│   GCP Workflows Deploy  ◄──  Cloud Run Deploy  ◄──  Push Image│
+└──────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 🔍 Detalhamento das Ferramentas e Portões de Segurança (Quality Gates)
+
+#### 1. Gitleaks (Prevenção de Vazamento de Segredos)
+* **Objetivo:** Analisar de forma estática todo o histórico de commits do repositório procurando por segredos, credenciais expostas, chaves de API, senhas ou certificados privados em texto claro.
+* **Por que é crucial?** Impede o comprometimento da infraestrutura em nuvem, garantindo que credenciais sensíveis (como chaves de contas de serviço) nunca entrem na árvore do Git.
+
+#### 2. Ruff (Linting e Estilo de Código Python)
+* **Objetivo:** Executar a validação sintática e de boas práticas de codificação no código Python do backend de forma extremamente rápida.
+* **Por que é crucial?** Mantém a consistência estilística (PEP 8) e identifica bugs em potencial (variáveis não utilizadas, importações incorretas) de forma ágil. No pipeline, ignoramos erros de manipulação genérica de exceções (`BLE001`) específicos para o fluxo local de fallback.
+
+#### 3. ESLint (Qualidade e Conformidade do JavaScript)
+* **Objetivo:** Linting das regras de código JavaScript do frontend (`static/js/`), utilizando uma estrutura de arquivo moderna de **Flat Config** (`eslint.config.mjs`).
+* **Por que é crucial?** Valida a ausência de variáveis e funções não declaradas (`no-undef`) e mantém o frontend livre de bugs comuns de escopo ou sintaxe Javascript. O arquivo de configuração mapeia explicitamente as funções globais compartilhadas entre `api.js` e `game.js`.
+
+#### 4. Hadolint (Linter de Dockerfile)
+* **Objetivo:** Analisar estaticamente o arquivo `Dockerfile` em busca de desvios das melhores práticas recomendadas pela comunidade e pela Docker.
+* **Por que é crucial?** Garante imagens menores (evitando pacotes supérfluos), builds mais rápidos (aproveitamento inteligente do cache de camadas) e maior segurança (desencorajando a execução de containers como usuário root sem necessidade).
+
+#### 5. Bandit (Análise Estática de Segurança / SAST em Python)
+* **Objetivo:** Executar análises de segurança estática no código Python, sinalizando possíveis brechas comuns de segurança, como injeção de comandos, uso de geradores de números pseudo-aleatórios fracos para fins criptográficos, etc.
+* **Por que é crucial?** Ajuda a identificar vulnerabilidades antes que o código entre em execução (análise do tipo "White-Box"). O comando é configurado para sinalizar falhas de nível médio ou alto (`-ll`).
+
+#### 6. Trivy FS (Análise de Vulnerabilidade de Dependências / SCA)
+* **Objetivo:** Analisar as dependências do repositório (declaradas em `backend/requirements.txt`) à procura de vulnerabilidades conhecidas (CVEs).
+* **Por que é crucial?** Evita o uso de bibliotecas de terceiros com falhas de segurança conhecidas e públicas. O pipeline é configurado para falhar imediatamente (`exit-code 1`) se encontrar vulnerabilidades com severidade `HIGH` ou `CRITICAL`.
+* **Mecanismo de Exceção (`.trivyignore`):** Para evitar falsos positivos ou falhas causadas por pacotes utilitários de sistema upstream empacotados internamente pelo Python (`pip` e `setuptools`), criamos o arquivo `.trivyignore` para documentar e ignorar com segurança essas exceções que não afetam a segurança da nossa aplicação.
+
+---
+
+### 🧪 Integração Contínua (CI) e Testes Automatizados
+Superado o portão de segurança e qualidade, o pipeline avança para a fase funcional:
+* **Testes Unitários:** Executa a suíte de testes do backend (`backend/test_main.py`) usando o módulo nativo do Python `unittest`.
+* **Garantia de Regressão:** Garante que novas funcionalidades ou alterações no backend (APIs de transação SAGA, anti-cheat, endpoints de score) não quebraram o comportamento funcional esperado pela aplicação.
+
+---
+
+### 🚀 Implantação Contínua Segura (CD)
+O job de Deploy é acionado apenas quando há uma inserção (push) direta na branch principal (`main`), sob as seguintes condições de segurança de ponta:
+
+1. **Autenticação Baseada em Identidade (Workload Identity Federation - WIF):** 
+   Não armazenamos nenhuma chave JSON estática ou de longa duração no GitHub para nos conectar ao GCP. O pipeline utiliza o WIF para trocar de forma dinâmica e efêmera o token JWT do GitHub Actions por credenciais temporárias do Google Cloud Platform, reduzindo drasticamente o risco de vazamento de credenciais.
+   
+2. **Build de Imagem e Varredura de Imagem (Trivy Image Scan):**
+   * A imagem Docker é gerada localmente no runner.
+   * Antes de enviá-la para o GCP, o **Trivy realiza uma segunda análise profunda (SCA)**, agora diretamente nas camadas da imagem Docker final compilada (incluindo o sistema operacional de base da imagem).
+   * Se alguma vulnerabilidade crítica/alta for detectada na imagem compilada, o pipeline é abortado e a imagem **não** é enviada ao repositório, mitigando o risco de "Contâineres Envenenados".
+   
+3. **Artifact Registry e Cloud Run:**
+   * Aprovada na análise, a imagem é enviada com tag contendo o SHA do commit para o **Google Artifact Registry (GAR)**.
+   * O deploy automático é efetuado no **Google Cloud Run** apontando de forma segura para a nova tag do container.
+   
+4. **Deploy Automático dos Orquestradores de Workflows:**
+   * O pipeline executa de forma automática o deploy dos fluxos do Google Cloud Workflows:
+     * `buy_skin_workflow.yaml` (Orquestração SAGA da Loja)
+     * `submit_score_workflow.yaml` (Árvore de Decisão do Anti-Cheat)
+   * Garante a sincronia imediata entre o código da aplicação FastAPI e as definições dos fluxos orquestrados no GCP.
+
+---
+
 ## 🖥️ Como Executar Localmente (Ambiente Virtual)
 
 Siga os passos abaixo para preparar seu ambiente Python, instalar as dependências necessárias e inicializar o jogo em seu navegador.
@@ -100,8 +206,8 @@ Siga os passos abaixo para preparar seu ambiente Python, instalar as dependênci
 Primeiro, clone o repositório para a sua máquina local e acesse a pasta do projeto:
 
 ```bash
-git clone https://github.com/Tiago-TSG/tetris-app-checkpoint-04.git
-cd tetris-app-checkpoint-04
+git clone https://github.com/Tiago-TSG/tetris-app-checkpoint-05.git
+cd tetris-app-checkpoint-05
 ```
 
 ### Passo 2: Criar o Ambiente Virtual (`venv`)
@@ -164,22 +270,22 @@ Este projeto possui suporte a contêineres Docker, o que permite rodar toda a ap
 Primeiro, clone o repositório para a sua máquina local e acesse a pasta do projeto:
 
 ```bash
-git clone https://github.com/Tiago-TSG/tetris-app-checkpoint-04.git
-cd tetris-app-checkpoint-04
+git clone https://github.com/Tiago-TSG/tetris-app-checkpoint-05.git
+cd tetris-app-checkpoint-05
 ```
 
 ### Passo 2: Construir a Imagem Docker
 No diretório raiz (onde está o arquivo `Dockerfile`), construa a imagem executando:
 
 ```bash
-docker build -t tetris-app-checkpoint-04 .
+docker build -t tetris-app-checkpoint-05 .
 ```
 
 ### Passo 3: Executar o Contêiner Localmente
 Inicialize o contêiner mapeando a porta interna `8080` para a porta `8080` do seu computador local:
 
 ```bash
-docker run -p 8080:8080 tetris-app-checkpoint-04
+docker run -p 8080:8080 tetris-app-checkpoint-05
 ```
 
 Acesse o jogo no navegador através do endereço local **`http://localhost:8080`**.
@@ -196,8 +302,8 @@ O **Google Cloud Run** é um serviço totalmente gerenciado do GCP que executa c
 3. Ter um projeto criado no GCP e habilitar o faturamento (Billing) e as APIs do Cloud Build e Cloud Run.
 4. Clonar este repositório Git em sua máquina local e acessar o diretório do projeto:
    ```bash
-   git clone https://github.com/Tiago-TSG/tetris-app-checkpoint-04.git
-   cd tetris-app-checkpoint-04
+   git clone https://github.com/Tiago-TSG/tetris-app-checkpoint-05.git
+   cd tetris-app-checkpoint-05
    ```
 
 ### 1. Criar os Tópicos do Pub/Sub
@@ -224,7 +330,7 @@ A forma mais rápida e simples de fazer o deploy no Cloud Run é usando o build 
 
 3.  Execute o comando de deploy. Ele criará a imagem e a colocará em execução:
     ```bash
-    gcloud run deploy tetris-app-checkpoint-04 \
+    gcloud run deploy tetris-app-checkpoint-05 \
       --source . \
       --region us-central1 \
       --allow-unauthenticated
@@ -234,7 +340,7 @@ A forma mais rápida e simples de fazer o deploy no Cloud Run é usando o build 
     
     *(Você pode alterar a região se desejar, como `southamerica-east1` para o Brasil).*
 
-4.  Ao final do processo, a CLI do gcloud exibirá a **URL pública do jogo** (ex: `https://tetris-app-checkpoint-04-xxxxx-us-central1.run.app`) no serviço "Cloud Run".
+4.  Ao final do processo, a CLI do gcloud exibirá a **URL pública do jogo** (ex: `https://tetris-app-checkpoint-05-xxxxx-us-central1.run.app`) no serviço "Cloud Run".
 
 ### 2. Configurar as Assinaturas de Push (Webhooks)
 Para fechar o ciclo do Pub/Sub, vincule os tópicos criados aos Webhooks da sua aplicação, substituindo a URL abaixo pela URL gerada no passo anterior:
@@ -271,13 +377,13 @@ Se você preferir construir a imagem manualmente e enviá-la para um repositóri
 2.  **Construir a imagem e enviá-la para o GCP via Cloud Build:**
     Substitua `PROJECT_ID` pelo ID real do seu projeto.
     ```bash
-    gcloud builds submit --tag us-central1-docker.pkg.dev/PROJECT_ID/neon-arcade-repo/tetris-app-checkpoint-04:latest .
+    gcloud builds submit --tag us-central1-docker.pkg.dev/PROJECT_ID/neon-arcade-repo/tetris-app-checkpoint-05:latest .
     ```
 
 3.  **Realizar o deploy do container armazenado no registro para o Cloud Run:**
     ```bash
     gcloud run deploy retro-neon-tetris \
-      --image us-central1-docker.pkg.dev/PROJECT_ID/neon-arcade-repo/tetris-app-checkpoint-04:latest \
+      --image us-central1-docker.pkg.dev/PROJECT_ID/neon-arcade-repo/tetris-app-checkpoint-05:latest \
       --region us-central1 \
       --allow-unauthenticated
     ```

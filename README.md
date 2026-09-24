@@ -73,7 +73,7 @@ A arquitetura atingiu maturidade de nível corporativo ao introduzir uma esteira
 3. **Análise de Segurança do Código (Bandit SAST):** Análise estática focada em vulnerabilidades de segurança específicas do ecossistema Python (FastAPI).
 4. **Análise de Segurança de Dependências e Infraestrutura (Trivy SCA):** Varredura de segurança de pacotes (filesystem) e da imagem Docker gerada para identificação de CVEs (vulnerabilidades e exposições comuns) de níveis crítico/alto, garantindo a imunidade do ambiente de execução.
 5. **Linting de Infraestrutura como Código (Hadolint):** Validação estática das instruções do `Dockerfile` visando otimização de camadas, redução de tamanho e eliminação de privilégios elevados.
-6. **Integração e Testes Automatizados (CI):** Execução automática de testes unitários para garantir a estabilidade do backend a cada alteração.
+6. **Testes Unitários Automatizados (CI):** Execução automática de testes unitários para garantir a estabilidade do backend a cada alteração.
 7. **Autenticação sem Segredos (Workload Identity Federation):** Conexão direta e segura com o GCP eliminando chaves estáticas JSON no repositório.
 8. **Implantação Contínua Automatizada (CD):** Publicação automatizada da imagem segura no Artifact Registry, deploy automático para o Cloud Run e deploy imediato dos workflows de orquestração do GCP Workflows.
 
@@ -109,33 +109,22 @@ O projeto adota uma abordagem de **DevSecOps robusta**, automatizada e integrada
 
 Abaixo está o detalhamento completo de cada etapa, sua justificativa técnica e as ferramentas empregadas:
 
-### 📊 Estrutura Geral do Pipeline
-O fluxo de trabalho (workflow) está dividido em três jobs principais, configurados com dependências estritas para garantir que um deploy nunca aconteça se houver falhas de segurança ou bugs funcionais.
+### 📊 Estrutura Geral do Pipeline (Confiança Progressiva Encadeada)
+O fluxo de trabalho (workflow) adota uma arquitetura em **cascata linear de portões estritos**, desenhando uma esteira de confiança progressiva e extremamente organizada. Ele é composto por **cinco jobs encadeados**, onde cada etapa funciona como um portão de segurança que só libera a execução da seguinte se estiver perfeitamente homologada:
 
 ```text
-┌──────────────────────────────────────────────────────────────┐
-│             JOB 1: QUALIDADE E SEGURANÇA (DevSecOps)          │
-│  Gitleaks  ─►  Ruff Linter  ─►  ESLint  ─►  Hadolint  ─► Bandit │
-│                                                      │       │
-│                                                      ▼       │
-│                                                   Trivy FS   │
-└──────────────────────────────┬───────────────────────────────┘
-                               │
-                               ▼
-┌──────────────────────────────────────────────────────────────┐
-│               JOB 2: TESTES UNITÁRIOS (CI)                   │
-│        Instalação Dependências  ──►  Testes Unitários        │
-└──────────────────────────────┬───────────────────────────────┘
-                               │
-                               ▼
-┌──────────────────────────────────────────────────────────────┐
-│               JOB 3: IMPLANTAÇÃO SEGURA (CD)                 │
-│  GCP Auth (WIF)  ──►  Docker Build  ──►  Trivy Image Scan    │
-│                                                │             │
-│                                                ▼             │
-│   GCP Workflows Deploy  ◄──  Cloud Run Deploy  ◄──  Push Image│
-└──────────────────────────────────────────────────────────────┘
+┌───────────┐       ┌───────────┐       ┌────────────┐       ┌────────────────────┐       ┌──────────────────────┐
+│  1. LINT  │ ───►  │  2. SAST  │ ───►  │  3. TEST   │ ───►  │ 4. BUILD & SCAN    │ ───►  │ 5. DEPLOY (CD)       │
+│  (Ruff,   │       │ (Gitleaks,│       │ (Unit Tests│       │ (Docker Build,     │       │ (Cloud Run Deploy,   │
+│  ESLint,  │       │  Bandit)  │       │    - CI)   │       │  Trivy Image Scan, │       │  Cloud Workflows)    │
+│ Hadolint) │       │           │       │            │       │  Push to GAR)      │       │                      │
+└───────────┘       └───────────┘       └────────────┘       └────────────────────┘       └──────────────────────┘
 ```
+
+Esta arquitetura linear traz grandes benefícios de governança de software:
+1. **Confiança Incremental:** O código só é escaneado em segurança se estiver bem formatado; só é testado logicamente se estiver livre de falhas de segurança conhecidas; só é buildado e implantado se passar em todos os testes funcionais.
+2. **Separação de Artefato e Orquestração (Melhor Prática de CD):** O job **`4. Secure Artifact Build (SCA)`** é focado puramente em empacotar, escanear as camadas do container (Trivy Image Scan) e "promover" o artefato seguro para o registro oficial do GCP (**Google Artifact Registry - GAR**). O job **`5. Continuous Deployment (CD)`** é totalmente desacoplado e assume apenas o papel de orquestração do ambiente, puxando a imagem já aprovada do GAR para atualizar o **Cloud Run** e aplicando em seguida os orquestradores SAGA do **Google Cloud Workflows**.
+3. **Eficiência Financeira e de Logs (Fail-Fast):** Se houver um erro de lint (5s), a esteira é abortada imediatamente. Não há desperdício de tempo e recursos executando testes unitários, scans complexos ou gerando builds de container sobre códigos com erros de sintaxe ou vazamento de credenciais.
 
 ---
 
@@ -168,7 +157,7 @@ O fluxo de trabalho (workflow) está dividido em três jobs principais, configur
 
 ---
 
-### 🧪 Integração Contínua (CI) e Testes Automatizados
+### 🧪 Testes Unitários Automatizados (CI)
 Superado o portão de segurança e qualidade, o pipeline avança para a fase funcional:
 * **Testes Unitários:** Executa a suíte de testes do backend (`backend/test_main.py`) usando o módulo nativo do Python `unittest`.
 * **Garantia de Regressão:** Garante que novas funcionalidades ou alterações no backend (APIs de transação SAGA, anti-cheat, endpoints de score) não quebraram o comportamento funcional esperado pela aplicação.

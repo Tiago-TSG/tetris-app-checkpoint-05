@@ -1,3 +1,4 @@
+# FORÇAR GATILHO DA PIPELINE PARA TESTAR DIAGNÓSTICO DO GEMINI AI
 import base64
 import json
 import os
@@ -37,6 +38,7 @@ class TestTetrisBackend(unittest.TestCase):
 
     def test_local_fallback_load_default(self):
         """Testa se carrega os scores padrão se o arquivo não existir."""
+        self.fail("BUG CONTROLADO: Falha induzida para testar o sistema de Troubleshooting da Action Composta do Gemini!")
         scores = main.load_scores_local()
         self.assertEqual(len(scores), 5)
         self.assertEqual(scores[0]["name"], "NEON_MASTER")

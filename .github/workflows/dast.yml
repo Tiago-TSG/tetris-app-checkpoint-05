@@ -1,0 +1,52 @@
+name: DAST - Active Security Scan (OWASP ZAP)
+
+on:
+  workflow_dispatch: # Permite a execução manual sob demanda pela aba Actions do GitHub
+
+jobs:
+  dast:
+    name: DAST - OWASP ZAP Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      # 1. Build da imagem Docker da aplicação localmente no Runner
+      - name: Build Container Image
+        run: |
+          docker build -t tetris-app-dast:latest .
+
+      # 2. Inicialização do container do app em background
+      - name: Run Application in Background
+        run: |
+          docker run -d --name app-dast -p 8080:8080 tetris-app-dast:latest
+
+      # 3. Extração dinâmica do IP interno do container na rede Docker
+      - name: Get Container IP Address
+        run: |
+          APP_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' app-dast)
+          echo "Internal App IP: $APP_IP"
+          echo "APP_IP=$APP_IP" >> $GITHUB_ENV
+
+      # 4. Aguardar a inicialização completa do FastAPI
+      - name: Wait for API to be ready
+        run: |
+          # Aguarda até que o endpoint responda com HTTP 200 ou passem 30 segundos
+          for i in {1..30}; do
+            curl -s -o /dev/null -w "%{http_code}" http://${{ env.APP_IP }}:8080 && break || sleep 1
+          done
+
+      # 5. Varredura de Segurança Dinâmica usando OWASP ZAP Baseline Scan
+      - name: OWASP ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.14.0
+        with:
+          target: 'http://${{ env.APP_IP }}:8080'
+          fail_action: false # Não quebra a pipeline se houver alertas, apenas reporta
+          allow_issue_writing: false # Evita erro de permissão impedindo a criação de issues no GitHub
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # 6. Limpeza e encerramento seguro do container do app
+      - name: Stop and Cleanup Container
+        if: always()
+        run: |
+          docker stop app-dast && docker rm app-dast

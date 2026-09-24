@@ -76,6 +76,7 @@ A arquitetura atingiu maturidade de nível corporativo ao introduzir uma esteira
 6. **Testes Unitários Automatizados (CI):** Execução automática de testes unitários para garantir a estabilidade do backend a cada alteração.
 7. **Autenticação sem Segredos (Workload Identity Federation):** Conexão direta e segura com o GCP eliminando chaves estáticas JSON no repositório.
 8. **Implantação Contínua Automatizada (CD):** Publicação automatizada da imagem segura no Artifact Registry, deploy automático para o Cloud Run e deploy imediato dos workflows de orquestração do GCP Workflows.
+9. **Varredura Dinâmica Ativa Sob Demanda (DAST - OWASP ZAP):** Pipeline isolada (`dast.yml`) executável de forma manual e segura que realiza simulações de ataques de injeção em um ambiente efêmero local, gerando relatórios dinâmicos completos.
 
 ---
 
@@ -125,6 +126,7 @@ Esta arquitetura linear traz grandes benefícios de governança de software:
 1. **Confiança Incremental:** O código só é escaneado em segurança se estiver bem formatado; só é testado logicamente se estiver livre de falhas de segurança conhecidas; só é buildado e implantado se passar em todos os testes funcionais.
 2. **Separação de Artefato e Orquestração (Melhor Prática de CD):** O job **`4. Secure Artifact Build (SCA)`** é focado puramente em empacotar, escanear as camadas do container (Trivy Image Scan) e "promover" o artefato seguro para o registro oficial do GCP (**Google Artifact Registry - GAR**). O job **`5. Continuous Deployment (CD)`** é totalmente desacoplado e assume apenas o papel de orquestração do ambiente, puxando a imagem já aprovada do GAR para atualizar o **Cloud Run** e aplicando em seguida os orquestradores SAGA do **Google Cloud Workflows**.
 3. **Eficiência Financeira e de Logs (Fail-Fast):** Se houver um erro de lint (5s), a esteira é abortada imediatamente. Não há desperdício de tempo e recursos executando testes unitários, scans complexos ou gerando builds de container sobre códigos com erros de sintaxe ou vazamento de credenciais.
+4. **Filtro Inteligente de Gatilhos (paths-ignore):** Para otimizar o tempo e os custos de execução de runners, o pipeline principal utiliza filtros inteligentes que ignoram alterações puramente de documentação (como arquivos `.md`) ou modificações nas receitas de infraestrutura do próprio GitHub Actions (pasta `.github/workflows/**`). O build e o deploy só acontecem quando há modificações de código lógico na aplicação (backend ou frontend).
 
 ---
 
@@ -184,6 +186,20 @@ O job de Deploy é acionado apenas quando há uma inserção (push) direta na br
      * `buy_skin_workflow.yaml` (Orquestração SAGA da Loja)
      * `submit_score_workflow.yaml` (Árvore de Decisão do Anti-Cheat)
    * Garante a sincronia imediata entre o código da aplicação FastAPI e as definições dos fluxos orquestrados no GCP.
+
+---
+
+### 🛡️ Testes de Invasão Ativos e Dinâmicos (DAST com OWASP ZAP)
+Como as melhores práticas de mercado desaconselham rodar testes dinâmicos pesados e invasivos de DAST em cada pequeno push diário (para economizar recursos e evitar poluição de dados no banco com payloads de teste), o projeto introduz uma **pipeline de DAST separada e sob demanda** configurada em `.github/workflows/dast.yml`.
+
+* **Como Funciona:**
+  1. O pipeline é ativado manualmente pelo painel **Actions** do GitHub (**Workflow Dispatch**).
+  2. Ele clona o repositório e compila a imagem Docker do jogo localmente no Runner temporário do GitHub.
+  3. Inicializa o container da aplicação em background.
+  4. Extrai dinamicamente o IP interno do container na rede interna do Docker para garantir conexões de rede 100% resilientes e isoladas.
+  5. Sobe o container oficial do **OWASP ZAP** e dispara um **Baseline Scan** contra o endereço IP interno do app, simulando ataques de injeção e testando a segurança da porta `8080` (como cabeçalhos ausentes ou cookies inseguros).
+  6. Gera e anexa um relatório completo de vulnerabilidades dinâmicas em formato HTML diretamente no painel do GitHub Actions.
+  7. Finaliza e destrói o container de testes, sem nunca expor ou poluir a infraestrutura de produção no GCP.
 
 ---
 

@@ -4,9 +4,15 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - '**.md'
+      - '.github/workflows/**'
   pull_request:
     branches:
       - main
+    paths-ignore:
+      - '**.md'
+      - '.github/workflows/**'
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}

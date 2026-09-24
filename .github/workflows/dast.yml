@@ -3,6 +3,13 @@ name: DAST - Active Security Scan (OWASP ZAP)
 on:
   workflow_dispatch: # Permite a execução manual sob demanda pela aba Actions do GitHub
 
+env:
+  GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }} # Chave global herdada pela ação de troubleshooting
+
+permissions:
+  contents: read
+  actions: read # Permitir que a CLI do GitHub busque logs para o troubleshooting com IA
+
 jobs:
   dast:
     name: DAST - OWASP ZAP Scan
@@ -31,10 +38,12 @@ jobs:
       # 4. Aguardar a inicialização completa do FastAPI
       - name: Wait for API to be ready
         run: |
-          # Aguarda até que o endpoint responda com HTTP 200 ou passem 30 segundos
+          # Aguarda até que o endpoint responda com HTTP 200 ou passem 30 segundos (Apontando para porta errada de propósito para forçar falha!)
           for i in {1..30}; do
-            curl -s -o /dev/null -w "%{http_code}" http://${{ env.APP_IP }}:8080 && break || sleep 1
+            curl -s -o /dev/null -w "%{http_code}" http://${{ env.APP_IP }}:9999 && break || sleep 1
           done
+          # Força a falha do passo ao tentar se conectar em uma porta fechada
+          curl -f http://${{ env.APP_IP }}:9999
 
       # 5. Varredura de Segurança Dinâmica usando OWASP ZAP Baseline Scan
       - name: OWASP ZAP Baseline Scan
@@ -50,3 +59,8 @@ jobs:
         if: always()
         run: |
           docker stop app-dast && docker rm app-dast
+
+      # 7. Diagnóstico de IA do Gemini se houver falhas no DAST (Usa a Action Composta)
+      - name: 🤖 Gemini AI Troubleshooting on Failure
+        if: failure()
+        uses: ./.github/actions/gemini-troubleshoot

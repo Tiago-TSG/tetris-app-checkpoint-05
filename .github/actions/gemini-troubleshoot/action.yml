@@ -1,0 +1,72 @@
+name: 'Gemini AI Troubleshooting'
+description: 'Diagnostica falhas no pipeline em tempo real utilizando a inteligência artificial do Google Gemini.'
+runs:
+  using: "composite"
+  steps:
+    - name: Fetch Failed Job Logs
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        echo "=== FAILED WORKFLOW LOGS ===" > failed_logs.txt
+        gh run view ${{ github.run_id }} --log-failed >> failed_logs.txt || true
+        tail -n 100 failed_logs.txt # Mantém um snapshot no console do runner
+
+    - name: Ask Gemini to Diagnose Failure
+      shell: bash
+      run: |
+        python3 -c '
+        import json, os, urllib.request
+
+        api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+        if not api_key:
+            with open("gemini_response.md", "w") as f:
+                f.write("### 🚨 Erro no Troubleshooting\nA chave de API `GEMINI_API_KEY` não está configurada nos segredos do repositório.")
+            exit(0)
+
+        try:
+            with open("failed_logs.txt", "r") as f:
+                logs = f.read()
+        except Exception:
+            logs = "Não foi possível carregar os logs de falha."
+
+        prompt = f"Você é o Gemini CLI, um assistente especialista DevOps. O pipeline do projeto Retro Neon Tetris falhou. Analise os logs de erro fornecidos e responda em português com um relatório estruturado em markdown contendo uma explicação curta e direta do motivo da falha, além de sugestões de correção passo a passo.\n\nLOGS DE ERRO:\n{logs}"
+
+        payload = {
+            "contents": [{
+                "parts": [{
+                    "text": prompt
+                }]
+            }]
+        }
+
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+
+        try:
+            with urllib.request.urlopen(req) as response:
+                res_data = json.loads(response.read().decode("utf-8"))
+                text = res_data["candidates"][0]["content"]["parts"][0]["text"]
+                with open("gemini_response.md", "w") as out:
+                    out.write(text)
+        except Exception as e:
+            api_key_info = f"Tamanho: {len(api_key)}"
+            if len(api_key) > 8:
+                api_key_info += f" | Início: {api_key[:4]}... | Fim: ...{api_key[-4:]}"
+            else:
+                api_key_info += f" | Valor: {api_key}"
+            with open("gemini_response.md", "w") as out:
+                out.write(f"### 🚨 Erro de Comunicação com o Gemini\nNão foi possível obter a resposta do Gemini.\n\n* **Detalhes do erro:** {str(e)}\n* **Informações da Chave Utilizada:** `{api_key_info}`\n\n*Dica: Verifique se você não colou por engano o nome literal do segredo (como secrets.GEMINI_API_KEY com as chaves ou aspas) como o valor do segredo no GitHub Settings. A chave real gerada no Google AI Studio deve começar com `AIzaSy`.*")
+        '
+
+    - name: Write Troubleshooting Report to Step Summary
+      shell: bash
+      run: |
+        echo "## 🤖 Relatório de Diagnóstico do Gemini AI" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        cat gemini_response.md >> $GITHUB_STEP_SUMMARY

@@ -20,10 +20,12 @@ env:
   REPOSITORY: ${{ secrets.GCP_GAR_REPOSITORY }}
   SERVICE: ${{ secrets.GCP_RUN_SERVICE }}
   REGION: ${{ secrets.GCP_REGION }}
+  GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }} # Chave global herdada por todos os passos e ações
 
 permissions:
   contents: read
   id-token: write # Requerido para autenticação via WIF
+  actions: read # Permitir que a CLI do GitHub busque logs para o troubleshooting com IA
 
 jobs:
   # ==========================================
@@ -61,6 +63,11 @@ jobs:
         with:
           dockerfile: Dockerfile
 
+      # 4. Diagnóstico de IA do Gemini se houver falhas no LINT
+      - name: 🤖 Gemini AI Troubleshooting on Failure
+        if: failure()
+        uses: ./.github/actions/gemini-troubleshoot
+
   # ==========================================
   # JOB 2: SEGURANÇA ESTÁTICA DO CÓDIGO (SAST)
   # ==========================================
@@ -85,6 +92,20 @@ jobs:
         run: |
           pip install bandit
           bandit -r backend/ -ll
+
+      # 3. Trivy FS - Análise de dependências estáticas (SCA no filesystem)
+      - name: Scan repository for vulnerabilities (Trivy FS)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH'
+
+      # 4. Diagnóstico de IA do Gemini se houver falhas no SAST
+      - name: 🤖 Gemini AI Troubleshooting on Failure
+        if: failure()
+        uses: ./.github/actions/gemini-troubleshoot
 
   # ==========================================
   # JOB 3: TESTES UNITÁRIOS (CI)
@@ -111,6 +132,11 @@ jobs:
       - name: Run unit tests
         run: |
           python -m unittest discover -s backend -p "test_main.py"
+
+      # 4. Diagnóstico de IA do Gemini se houver falhas nos Testes
+      - name: 🤖 Gemini AI Troubleshooting on Failure
+        if: failure()
+        uses: ./.github/actions/gemini-troubleshoot
 
   # ==========================================
   # JOB 4: GERAÇÃO DO ARTEFATO SEGURO (BUILD & SCA)
@@ -161,6 +187,11 @@ jobs:
         run: |
           docker push ${{ env.IMAGE_TAG }}
 
+      # 7. Diagnóstico de IA do Gemini se houver falhas no Build/SCA
+      - name: 🤖 Gemini AI Troubleshooting on Failure
+        if: failure()
+        uses: ./.github/actions/gemini-troubleshoot
+
   # ==========================================
   # JOB 5: ORQUESTRAÇÃO DE AMBIENTE (DEPLOY)
   # ==========================================
@@ -208,3 +239,8 @@ jobs:
             --source=submit_score_workflow.yaml \
             --location=${{ env.REGION }} \
             --quiet
+
+      # 5. Diagnóstico de IA do Gemini se houver falhas no Deploy
+      - name: 🤖 Gemini AI Troubleshooting on Failure
+        if: failure()
+        uses: ./.github/actions/gemini-troubleshoot

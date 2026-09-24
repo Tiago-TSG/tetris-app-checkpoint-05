@@ -38,12 +38,10 @@ jobs:
       # 4. Aguardar a inicialização completa do FastAPI
       - name: Wait for API to be ready
         run: |
-          # Aguarda até que o endpoint responda com HTTP 200 ou passem 30 segundos (Apontando para porta errada de propósito para forçar falha!)
+          # Aguarda até que o endpoint responda com HTTP 200 ou passem 30 segundos
           for i in {1..30}; do
-            curl -s -o /dev/null -w "%{http_code}" http://${{ env.APP_IP }}:9999 && break || sleep 1
+            curl -s -o /dev/null -w "%{http_code}" http://${{ env.APP_IP }}:8080 && break || sleep 1
           done
-          # Força a falha do passo ao tentar se conectar em uma porta fechada
-          curl -f http://${{ env.APP_IP }}:9999
 
       # 5. Varredura de Segurança Dinâmica usando OWASP ZAP Baseline Scan
       - name: OWASP ZAP Baseline Scan

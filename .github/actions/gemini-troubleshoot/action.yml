@@ -40,28 +40,44 @@ runs:
             }]
         }
 
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
-        req = urllib.request.Request(
-            url,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            method="POST"
-        )
+        urls = [
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={api_key}",
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}",
+            f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={api_key}",
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key={api_key}"
+        ]
 
-        try:
-            with urllib.request.urlopen(req) as response:
-                res_data = json.loads(response.read().decode("utf-8"))
-                text = res_data["candidates"][0]["content"]["parts"][0]["text"]
-                with open("gemini_response.md", "w") as out:
-                    out.write(text)
-        except Exception as e:
+        success = False
+        errors = []
+        for url in urls:
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST"
+            )
+            try:
+                with urllib.request.urlopen(req) as response:
+                    res_data = json.loads(response.read().decode("utf-8"))
+                    text = res_data["candidates"][0]["content"]["parts"][0]["text"]
+                    with open("gemini_response.md", "w") as out:
+                        out.write(text)
+                    success = True
+                    break
+            except Exception as e:
+                model_name = url.split("/models/")[1].split(":")[0]
+                api_ver = url.split("googleapis.com/")[1].split("/")[0]
+                errors.append(f"Tentativa com {model_name} ({api_ver}) falhou: {str(e)}")
+
+        if not success:
             api_key_info = f"Tamanho: {len(api_key)}"
             if len(api_key) > 8:
                 api_key_info += f" | Início: {api_key[:4]}... | Fim: ...{api_key[-4:]}"
             else:
                 api_key_info += f" | Valor: {api_key}"
+            error_details = "\n".join([f"* {err}" for err in errors])
             with open("gemini_response.md", "w") as out:
-                out.write(f"### 🚨 Erro de Comunicação com o Gemini\nNão foi possível obter a resposta do Gemini.\n\n* **Detalhes do erro:** {str(e)}\n* **Informações da Chave Utilizada:** `{api_key_info}`\n\n*Dica: Verifique se você não colou por engano o nome literal do segredo (como secrets.GEMINI_API_KEY com as chaves ou aspas) como o valor do segredo no GitHub Settings. A chave real gerada no Google AI Studio deve começar com `AIzaSy`.*")
+                out.write(f"### 🚨 Erro de Comunicação com o Gemini\nNão foi possível obter a resposta do Gemini em nenhuma das tentativas.\n\n**Detalhes das tentativas:**\n{error_details}\n\n* **Informações da Chave Utilizada:** `{api_key_info}`\n\n*Dica: Verifique se você não colou por engano o nome literal do segredo (como secrets.GEMINI_API_KEY com as chaves ou aspas) como o valor do segredo no GitHub Settings. A chave real gerada no Google AI Studio deve começar com `AIzaSy`.*")
         '
 
     - name: Write Troubleshooting Report to Step Summary

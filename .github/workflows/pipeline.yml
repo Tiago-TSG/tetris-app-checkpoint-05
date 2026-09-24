@@ -21,10 +21,46 @@ permissions:
 
 jobs:
   # ==========================================
-  # JOB 1: QUALIDADE E SEGURANÇA (DevSecOps)
+  # JOB 1: QUALIDADE E ESTILO DE CÓDIGO (LINT)
   # ==========================================
-  quality-and-security:
-    name: Code Quality & Security Scan
+  lint:
+    name: 1. Code Quality & Style (LINT)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      # 1. Lint do Python usando Ruff (Ultrarápido)
+      - name: Lint Python Code with Ruff
+        uses: astral-sh/ruff-action@v4.1.0
+        with:
+          src: "./backend"
+          args: "check --ignore BLE001"
+
+      # 2. Lint do JavaScript usando ESLint (Flat Config)
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+
+      - name: Install ESLint and run check
+        run: |
+          npm init -y --silent
+          npm install eslint@9.10.0 --save-dev --silent
+          npx eslint static/js/
+
+      # 3. Hadolint - Lint do Dockerfile
+      - name: Lint Dockerfile (Hadolint)
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+
+  # ==========================================
+  # JOB 2: SEGURANÇA ESTÁTICA DO CÓDIGO (SAST)
+  # ==========================================
+  sast:
+    name: 2. Static Security (SAST)
+    needs: lint # Executado apenas após aprovação no Lint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -38,51 +74,18 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 2. Lint do Python usando Ruff (Ultrarápido)
-      - name: Lint Python Code with Ruff
-        uses: astral-sh/ruff-action@v4.1.0
-        with:
-          src: "./backend"
-          args: "check --ignore BLE001"
-
-      # 3. Lint do JavaScript usando ESLint (Flat Config)
-      - name: Set up Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: '24'
-
-      - name: Install ESLint and run check
-        run: |
-          npm init -y --silent
-          npm install eslint@9.10.0 --save-dev --silent
-          npx eslint static/js/
-
-      # 4. Hadolint - Lint do Dockerfile
-      - name: Lint Dockerfile (Hadolint)
-        uses: hadolint/hadolint-action@v3.1.0
-        with:
-          dockerfile: Dockerfile
-
-      # 5. Bandit - SAST de Segurança em Python (Sinaliza falhas graves)
+      # 2. Bandit - SAST de Segurança em Python (Sinaliza falhas graves)
       - name: Python Security Scan (Bandit)
         run: |
           pip install bandit
           bandit -r backend/ -ll
 
-      # 6. Trivy - Análise de dependências estáticas (SCA)
-      - name: Scan repository for vulnerabilities (Trivy FS)
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          exit-code: '1'
-          severity: 'CRITICAL,HIGH'
-
   # ==========================================
-  # JOB 2: TESTES UNITÁRIOS (CI)
+  # JOB 3: TESTES UNITÁRIOS (CI)
   # ==========================================
   test:
-    name: Continuous Integration (CI)
+    name: 3. Unit Tests (CI)
+    needs: sast # Executado apenas após o código ser validado em estilo e segurança estática
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -104,13 +107,12 @@ jobs:
           python -m unittest discover -s backend -p "test_main.py"
 
   # ==========================================
-  # JOB 3: IMPLANTAÇÃO SEGURA (CD)
+  # JOB 4: GERAÇÃO DO ARTEFATO SEGURO (BUILD & SCA)
   # ==========================================
-  deploy:
-    name: Continuous Deployment (CD)
-    needs: [quality-and-security, test] # Só executa se passar no scanner de segurança e nos testes
+  build-and-push:
+    name: 4. Secure Artifact Build (SCA)
+    needs: test # Executado apenas após aprovação nos testes funcionais
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -139,7 +141,7 @@ jobs:
           docker build -t $IMAGE_TAG .
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
 
-      # 5. Trivy - Varredura de Segurança da imagem Docker gerada (antes de enviar ao GCP)
+      # 5. Trivy - Varredura de Segurança da imagem Docker gerada (SCA no container)
       - name: Scan Docker Image (Trivy Image)
         uses: aquasecurity/trivy-action@master
         with:
@@ -148,23 +150,47 @@ jobs:
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
 
-      # 6. Push da Imagem caso passe em todos os testes de segurança
+      # 6. Push da Imagem caso passe em todos os testes de segurança do container
       - name: Push Container Image
         run: |
           docker push ${{ env.IMAGE_TAG }}
 
-      # 7. Deploy no Google Cloud Run
+  # ==========================================
+  # JOB 5: ORQUESTRAÇÃO DE AMBIENTE (DEPLOY)
+  # ==========================================
+  deploy:
+    name: 5. Continuous Deployment (CD)
+    needs: build-and-push # Só executa se o artefato seguro foi publicado no GAR
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      # 1. Autenticação Segura via WIF
+      - name: Google Auth (WIF)
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+
+      # 2. Configuração do gcloud CLI
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v3
+
+      # 3. Deploy no Google Cloud Run apontando para a imagem certificada do GAR
       - name: Deploy to Cloud Run
         uses: google-github-actions/deploy-cloudrun@v3
         with:
           service: ${{ env.SERVICE }}
           region: ${{ env.REGION }}
-          image: ${{ env.IMAGE_TAG }}
+          image: ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE }}:${{ github.sha }}
           flags: |
             --port=8080
             --allow-unauthenticated
 
-      # 8. Deploy de Orquestradores do Google Cloud Workflows
+      # 4. Deploy de Orquestradores do Google Cloud Workflows
       - name: Deploy Cloud Workflows
         run: |
           gcloud workflows deploy buy_skin_workflow \
